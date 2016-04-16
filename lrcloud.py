@@ -33,39 +33,40 @@ def unlock_file(filename):
         return False
 
 def main(args):
-    cloud_catalog = join(args.cloud_dir,basename(args.catalog))
-
+    lcat = args.local_catalog
+    ccat = args.cloud_catalog
+    
     #Let's "lock" the local catalog
-    if not lock_file(args.catalog):
-        raise RuntimeError("The catalog %s is locked!"%args.catalog)
+    if not lock_file(lcat):
+        raise RuntimeError("The catalog %s is locked!"%lcat)
 
     #Let's "lock" the cloud catalog
-    if not lock_file(cloud_catalog):
-        raise RuntimeError("The cloud catalog %s is locked!"%cloud_catalog)
+    if not lock_file(ccat):
+        raise RuntimeError("The cloud catalog %s is locked!"%ccat)
 
     #Let's make sure that the local catalog exist and is readable
-    with open(args.catalog, "r"):
+    with open(lcat, "r"):
         #TODO: integrity check and get version
         pass
 
-    if os.path.isfile(cloud_catalog):#The cloud is not empty
+    if os.path.isfile(ccat):#The cloud is not empty
 
         #Backup the local catalog (overwriting old backup)
         try:
-            os.remove("%s.backup"%args.catalog)
-            logging.info("Removed old backup: %s.backup"%args.catalog)
+            os.remove("%s.backup"%lcat)
+            logging.info("Removed old backup: %s.backup"%lcat)
         except OSError:
             pass        
-        logging.info("Backup: %s => %s.backup"%(args.catalog, args.catalog))
-        shutil.move(args.catalog, "%s.backup"%args.catalog)
+        logging.info("Backup: %s => %s.backup"%(lcat, lcat))
+        shutil.move(lcat, "%s.backup"%lcat)
 
         #Copy from cloud to local
-        logging.info("Copy catalog - cloud to local: %s => %s"%(cloud_catalog, args.catalog))
-        shutil.copy2(cloud_catalog, args.catalog)
+        logging.info("Copy catalog - cloud to local: %s => %s"%(ccat, lcat))
+        shutil.copy2(ccat, lcat)
 
     #Let's unlock the local catalog so that Lightrome can read it
-    logging.info("Unlocking local catalog: %s"%(args.catalog))
-    unlock_file(args.catalog)
+    logging.info("Unlocking local catalog: %s"%(lcat))
+    unlock_file(lcat)
     
     #Now we can start Lightroom
     logging.info("Starting Lightroom: %s"%args.lightroom_exec)
@@ -74,14 +75,14 @@ def main(args):
     logging.info("Lightroom exit")
 
     #Copy from local to cloud
-    logging.info("Copy catalog - local to cloud: %s => %s"%(args.catalog, cloud_catalog))
-    shutil.copy2(args.catalog, cloud_catalog)
+    logging.info("Copy catalog - local to cloud: %s => %s"%(lcat, ccat))
+    shutil.copy2(lcat, ccat)
 
     #Finally,let's unlock the catalog files
-    logging.info("Unlocking local catalog: %s"%(args.catalog))
-    unlock_file(args.catalog)
-    logging.info("Unlocking cloud catalog: %s"%(cloud_catalog))
-    unlock_file(cloud_catalog)
+    logging.info("Unlocking local catalog: %s"%(lcat))
+    unlock_file(lcat)
+    logging.info("Unlocking cloud catalog: %s"%(ccat))
+    unlock_file(ccat)
 
 
 def expand_path(parser, path):
@@ -102,15 +103,14 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Cloud extension to Lightroom')
     parser.add_argument(
-        '--cloud-dir',
-        help='Path to the cloud directory e.g. a Google Drive '\
-             'or a Dropbox folder',
-        type=lambda x: expand_path(parser, x)
+        '--cloud-catalog',
+        help='The cloud/shared catalog file e.g. located in Google Drive or Dropbox',
+        type=lambda x: os.path.expanduser(x)
     )
     parser.add_argument(
-        '--catalog',
-        help='The Lightroom catalog file',
-        type=str
+        '--local-catalog',
+        help='The local Lightroom catalog file',
+        type=lambda x: os.path.expanduser(x)
     )
     parser.add_argument(
         '--lightroom_exec',
