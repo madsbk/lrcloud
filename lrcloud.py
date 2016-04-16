@@ -66,13 +66,14 @@ def main(args):
     if os.path.isfile(ccat):#The cloud is not empty
 
         #Backup the local catalog (overwriting old backup)
-        try:
-            os.remove("%s.backup"%lcat)
-            logging.info("Removed old backup: %s.backup"%lcat)
-        except OSError:
-            pass        
-        logging.info("Backup: %s => %s.backup"%(lcat, lcat))
-        shutil.move(lcat, "%s.backup"%lcat)
+        if os.path.isfile(lcat):
+            try:
+                os.remove("%s.backup"%lcat)
+                logging.info("Removed old backup: %s.backup"%lcat)
+            except OSError:
+                pass        
+            logging.info("Backup: %s => %s.backup"%(lcat, lcat))
+            shutil.move(lcat, "%s.backup"%lcat)
 
         #Copy from cloud to local
         logging.info("Copy catalog - cloud to local: %s => %s"%(ccat, lcat))
@@ -80,7 +81,7 @@ def main(args):
 
     #Let's copy Smart Previews
     if not args.no_smart_previews:
-        copy_smart_previews(ccat, lcat, local2cloud=False)
+        copy_smart_previews(lcat, ccat, local2cloud=False)
 
     #Let's unlock the local catalog so that Lightrome can read it
     logging.info("Unlocking local catalog: %s"%(lcat))
@@ -121,7 +122,7 @@ def parse_arguments():
         type=lambda x: os.path.expanduser(x)
     )
     parser.add_argument(
-        '--lightroom_exec',
+        '--lightroom-exec',
         help='The Lightroom executable file',
         type=str
     )
