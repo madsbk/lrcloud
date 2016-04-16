@@ -5,7 +5,8 @@ import os
 import shutil
 import subprocess
 import logging
-from os.path import join, basename
+import distutils.dir_util
+from os.path import join, basename, dirname
 
 def lock_file(filename):
     """Locks the file by writing a '.lock' file.
@@ -31,6 +32,21 @@ def unlock_file(filename):
         return True
     else:
         return False
+
+def copy_smart_previews(local_catalog, cloud_catalog, local2cloud=True):
+    """Copy Smart Previews from local to cloud or
+       vica versa when 'local2cloud==False' """
+    
+    lcat_noext = local_catalog[0:local_catalog.rfind(".lrcat")]
+    ccat_noext = cloud_catalog[0:cloud_catalog.rfind(".lrcat")]
+    lsmart = join(dirname(local_catalog),"%s Smart Previews.lrdata"%basename(lcat_noext))
+    csmart = join(dirname(cloud_catalog),"%s Smart Previews.lrdata"%basename(ccat_noext))
+    if local2cloud:
+        logging.info("Copy Smart Previews - local to cloud: %s => %s"%(lsmart, csmart))
+        distutils.dir_util.copy_tree(lsmart,csmart, update=1)
+    else:
+        logging.info("Copy Smart Previews - cloud to local: %s => %s"%(csmart, lsmart))
+        distutils.dir_util.copy_tree(csmart,lsmart, update=1)
 
 def main(args):
     lcat = args.local_catalog
@@ -64,6 +80,10 @@ def main(args):
         logging.info("Copy catalog - cloud to local: %s => %s"%(ccat, lcat))
         shutil.copy2(ccat, lcat)
 
+    #Let's copy Smart Previews
+    if not args.no_smart_previews:
+        copy_smart_previews(ccat, lcat, local2cloud=False)
+
     #Let's unlock the local catalog so that Lightrome can read it
     logging.info("Unlocking local catalog: %s"%(lcat))
     unlock_file(lcat)
@@ -77,6 +97,10 @@ def main(args):
     #Copy from local to cloud
     logging.info("Copy catalog - local to cloud: %s => %s"%(lcat, ccat))
     shutil.copy2(lcat, ccat)
+
+    #Let's copy Smart Previews
+    if not args.no_smart_previews:
+        copy_smart_previews(lcat, ccat, local2cloud=True)
 
     #Finally,let's unlock the catalog files
     logging.info("Unlocking local catalog: %s"%(lcat))
@@ -122,8 +146,13 @@ if __name__ == "__main__":
         help='Increase output verbosity',
         action="store_true"
     )
+    parser.add_argument(
+        '--no-smart-previews',
+        help="Don't Sync Smart Previews",
+        action="store_true"
+    )
     args = parser.parse_args()
-
+    
     if args.verbose:
         logging.basicConfig(level=logging.INFO)
 
