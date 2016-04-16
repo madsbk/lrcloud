@@ -2,11 +2,13 @@
 
 import argparse
 import os
+import sys
 import shutil
 import subprocess
 import logging
 import distutils.dir_util
 from os.path import join, basename, dirname
+import traceback
 
 def lock_file(filename):
     """Locks the file by writing a '.lock' file.
@@ -104,22 +106,8 @@ def main(args):
     unlock_file(ccat)
 
 
-def expand_path(parser, path):
-    """
-    Expand then given path.
-
-    Such as expanding the tilde in "~/bohrium", thereby providing
-    the absolute path to the directory "bohrium" in the home folder.
-    """
-
-    path = os.path.expanduser(path)
-    if os.path.isdir(path):
-        return os.path.abspath(path)
-    else:
-        parser.error("The path %s does not exist!" % path)
-
-if __name__ == "__main__":
-
+def parse_arguments():
+    """Return arguments"""
     parser = argparse.ArgumentParser(description='Cloud extension to Lightroom')
     parser.add_argument(
         '--cloud-catalog',
@@ -147,7 +135,7 @@ if __name__ == "__main__":
         action="store_true"
     )
     args = parser.parse_args()
-    
+
     if args.verbose:
         logging.basicConfig(level=logging.INFO)
 
@@ -163,5 +151,21 @@ if __name__ == "__main__":
         parser.error("No catalog exist! Either a local "\
                      "or a cloud catalog must exist")
         raise argparse.ArgumentError
-        
-    main(args)
+
+
+if __name__ == "__main__":
+
+    try:
+        args = parse_arguments()
+    except:
+        input('Error: Press enter to close')
+        sys.exit(-1)
+
+    try:
+        main(args)
+    except:
+        traceback.print_exc()
+        input('Error: Press enter to close')
+        sys.exit(-1)
+
+    input('lrcloud finished: Press enter to close')
