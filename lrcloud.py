@@ -60,11 +60,6 @@ def main(args):
     if not lock_file(ccat):
         raise RuntimeError("The cloud catalog %s is locked!"%ccat)
 
-    #Let's make sure that the local catalog exist and is readable
-    with open(lcat, "r"):
-        #TODO: integrity check and get version
-        pass
-
     if os.path.isfile(ccat):#The cloud is not empty
 
         #Backup the local catalog (overwriting old backup)
@@ -156,4 +151,17 @@ if __name__ == "__main__":
     if args.verbose:
         logging.basicConfig(level=logging.INFO)
 
+    if args.local_catalog is None:
+        parser.error("No local catalog specified, use --local-catalog")
+        raise argparse.ArgumentError
+    if args.cloud_catalog is None:
+        parser.error("No cloud catalog specified, use --cloud-catalog")
+        raise argparse.ArgumentError
+
+    if not os.path.isfile(args.local_catalog) and \
+       not os.path.isfile(args.cloud_catalog):
+        parser.error("No catalog exist! Either a local "\
+                     "or a cloud catalog must exist")
+        raise argparse.ArgumentError
+        
     main(args)
