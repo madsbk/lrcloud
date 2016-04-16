@@ -4,6 +4,7 @@ import argparse
 import os
 import shutil
 import subprocess
+import logging
 from os.path import join, basename
 
 def lock_file(filename):
@@ -52,23 +53,34 @@ def main(args):
         #Backup the local catalog (overwriting old backup)
         try:
             os.remove("%s.backup"%args.catalog)
+            logging.info("Removed old backup: %s.backup"%args.catalog)
         except OSError:
-            pass
+            pass        
+        logging.info("Backup: %s => %s.backup"%(args.catalog, args.catalog))
         shutil.move(args.catalog, "%s.backup"%args.catalog)
 
         #Copy from cloud to local
+        logging.info("Copy catalog - cloud to local: %s => %s"%(cloud_catalog, args.catalog))
         shutil.copy2(cloud_catalog, args.catalog)
 
+    #Let's unlock the local catalog so that Lightrome can read it
+    logging.info("Unlocking local catalog: %s"%(args.catalog))
+    unlock_file(args.catalog)
+    
     #Now we can start Lightroom
-    print("Starting Lightroom: %s"%args.lightroom_exec)
+    logging.info("Starting Lightroom: %s"%args.lightroom_exec)
     if args.lightroom_exec is not None:
         subprocess.call(args.lightroom_exec)
+    logging.info("Lightroom exit")
 
     #Copy from local to cloud
+    logging.info("Copy catalog - local to cloud: %s => %s"%(args.catalog, cloud_catalog))
     shutil.copy2(args.catalog, cloud_catalog)
 
     #Finally,let's unlock the catalog files
+    logging.info("Unlocking local catalog: %s"%(args.catalog))
     unlock_file(args.catalog)
+    logging.info("Unlocking cloud catalog: %s"%(cloud_catalog))
     unlock_file(cloud_catalog)
 
 
@@ -105,6 +117,14 @@ if __name__ == "__main__":
         help='The Lightroom executable file',
         type=str
     )
+    parser.add_argument(
+        '-v', '--verbose',
+        help='Increase output verbosity',
+        action="store_true"
+    )
     args = parser.parse_args()
+
+    if args.verbose:
+        logging.basicConfig(level=logging.INFO)
 
     main(args)
