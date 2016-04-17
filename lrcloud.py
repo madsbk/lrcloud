@@ -9,6 +9,8 @@ import logging
 import distutils.dir_util
 from os.path import join, basename, dirname
 import traceback
+import zipfile
+import tempfile
 
 def lock_file(filename):
     """Locks the file by writing a '.lock' file.
@@ -39,7 +41,7 @@ def copy_smart_previews(local_catalog, cloud_catalog, local2cloud=True):
     """Copy Smart Previews from local to cloud or
        vica versa when 'local2cloud==False'
        NB: nothing happens if source dir doesn't exist"""
-    
+
     lcat_noext = local_catalog[0:local_catalog.rfind(".lrcat")]
     ccat_noext = cloud_catalog[0:cloud_catalog.rfind(".lrcat")]
     lsmart = join(dirname(local_catalog),"%s Smart Previews.lrdata"%basename(lcat_noext))
@@ -51,10 +53,50 @@ def copy_smart_previews(local_catalog, cloud_catalog, local2cloud=True):
         logging.info("Copy Smart Previews - cloud to local: %s => %s"%(csmart, lsmart))
         distutils.dir_util.copy_tree(csmart,lsmart, update=1)
 
+def copy_catalog(local_catalog, cloud_catalog, local2cloud=True):
+    """Copy catalog files from local to cloud or
+       vica versa when 'local2cloud==False'
+    """
+
+    (lcat, ccat) = (local_catalog, cloud_catalog)
+
+    #Find the source and destination catalog
+    if local2cloud:
+        logging.info("Copy catalog - local to cloud: %s => %s"%(lcat, ccat))
+        (src, dst) = (lcat, ccat)
+    else:
+        logging.info("Copy catalog - cloud to local: %s => %s"%(ccat, lcat))
+        (src, dst) = (ccat, lcat)
+
+    (szip, dzip) = (src.endswith(".zip"), dst.endswith(".zip"))
+
+    if szip and dzip:#If both zipped, we can simply use copy
+        shutil.copy2(src, dst)
+    elif szip:
+        with zipfile.ZipFile(src, mode='r') as z:
+            tmpdir = tempfile.mkdtemp()
+            try:
+                z.extractall(tmpdir)
+                if len(z.namelist()) != 1:
+                    raise RuntimeError("The zip file '%s' should only have one "\
+                                       "compressed file")
+                tmpfile = join(tmpdir,z.namelist()[0])
+                try:
+                    os.remove(dst)
+                except OSError:
+                    pass
+                shutil.move(tmpfile, dst)
+            finally:
+                shutil.rmtree(tmpdir, ignore_errors=True)
+    elif dzip:
+        with zipfile.ZipFile(dst, mode='w') as z:
+            z.write(src, arcname=basename(dst))
+
+
 def main(args):
     lcat = args.local_catalog
     ccat = args.cloud_catalog
-    
+
     #Let's "lock" the local catalog
     if not lock_file(lcat):
         raise RuntimeError("The catalog %s is locked!"%lcat)
@@ -68,16 +110,15 @@ def main(args):
         #Backup the local catalog (overwriting old backup)
         if os.path.isfile(lcat):
             try:
-                os.remove("%s.backup"%lcat)
                 logging.info("Removed old backup: %s.backup"%lcat)
+                os.remove("%s.backup"%lcat)
             except OSError:
-                pass        
+                pass
             logging.info("Backup: %s => %s.backup"%(lcat, lcat))
             shutil.move(lcat, "%s.backup"%lcat)
 
         #Copy from cloud to local
-        logging.info("Copy catalog - cloud to local: %s => %s"%(ccat, lcat))
-        shutil.copy2(ccat, lcat)
+        copy_catalog(lcat, ccat, local2cloud=False)
 
     #Let's copy Smart Previews
     if not args.no_smart_previews:
@@ -86,7 +127,7 @@ def main(args):
     #Let's unlock the local catalog so that Lightrome can read it
     logging.info("Unlocking local catalog: %s"%(lcat))
     unlock_file(lcat)
-    
+
     #Now we can start Lightroom
     logging.info("Starting Lightroom: %s"%args.lightroom_exec)
     if args.lightroom_exec is not None:
@@ -94,8 +135,7 @@ def main(args):
     logging.info("Lightroom exit")
 
     #Copy from local to cloud
-    logging.info("Copy catalog - local to cloud: %s => %s"%(lcat, ccat))
-    shutil.copy2(lcat, ccat)
+    copy_catalog(lcat, ccat, local2cloud=True)
 
     #Let's copy Smart Previews
     if not args.no_smart_previews:
@@ -158,17 +198,11 @@ def parse_arguments():
 
 if __name__ == "__main__":
 
-    try:
-        args = parse_arguments()
-    except:
-        input('Error: Press enter to close')
-        sys.exit(-1)
+    args = parse_arguments()
 
     try:
         main(args)
-    except:
-        traceback.print_exc()
-        input('Error: Press enter to close')
-        sys.exit(-1)
+    finally:
+        unlock_file(args.local_catalog)
+        unlock_file(args.cloud_catalog)
 
-    input('lrcloud finished: Press enter to close')
