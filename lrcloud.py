@@ -10,6 +10,7 @@ import distutils.dir_util
 from os.path import join, basename, dirname
 import traceback
 import zipfile
+from zipfile import ZIP_DEFLATED
 import tempfile
 
 def lock_file(filename):
@@ -89,7 +90,7 @@ def copy_catalog(local_catalog, cloud_catalog, local2cloud=True):
             finally:
                 shutil.rmtree(tmpdir, ignore_errors=True)
     elif dzip:
-        with zipfile.ZipFile(dst, mode='w') as z:
+        with zipfile.ZipFile(dst, mode='w', compression=ZIP_DEFLATED) as z:
             z.write(src, arcname=basename(src))
 
 
