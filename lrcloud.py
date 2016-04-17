@@ -130,9 +130,9 @@ def main(args):
     unlock_file(lcat)
 
     #Now we can start Lightroom
-    logging.info("Starting Lightroom: %s"%args.lightroom_exec)
+    logging.info("Starting Lightroom: %s %s"%(args.lightroom_exec, lcat))
     if args.lightroom_exec is not None:
-        subprocess.call(args.lightroom_exec)
+        subprocess.call([args.lightroom_exec, lcat])
     logging.info("Lightroom exit")
 
     #Copy from local to cloud
