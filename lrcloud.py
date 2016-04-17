@@ -90,7 +90,7 @@ def copy_catalog(local_catalog, cloud_catalog, local2cloud=True):
                 shutil.rmtree(tmpdir, ignore_errors=True)
     elif dzip:
         with zipfile.ZipFile(dst, mode='w') as z:
-            z.write(src, arcname=basename(dst))
+            z.write(src, arcname=basename(src))
 
 
 def main(args):
