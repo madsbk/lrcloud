@@ -7,11 +7,12 @@ import shutil
 import subprocess
 import logging
 import distutils.dir_util
-from os.path import join, basename, dirname
+from os.path import join, basename, dirname, isfile
 import traceback
 import zipfile
 from zipfile import ZIP_DEFLATED
 import tempfile
+
 
 def lock_file(filename):
     """Locks the file by writing a '.lock' file.
@@ -19,7 +20,7 @@ def lock_file(filename):
        False when the file was locked already"""
 
     lockfile = "%s.lock"%filename
-    if os.path.isfile(lockfile):
+    if isfile(lockfile):
         return False
     else:
         with open(lockfile, "w"):
@@ -32,11 +33,12 @@ def unlock_file(filename):
        False when the file was unlocked already"""
 
     lockfile = "%s.lock"%filename
-    if os.path.isfile(lockfile):
+    if isfile(lockfile):
         os.remove(lockfile)
         return True
     else:
         return False
+
 
 def copy_smart_previews(local_catalog, cloud_catalog, local2cloud=True):
     """Copy Smart Previews from local to cloud or
@@ -92,6 +94,8 @@ def copy_catalog(local_catalog, cloud_catalog, local2cloud=True):
     elif dzip:
         with zipfile.ZipFile(dst, mode='w', compression=ZIP_DEFLATED) as z:
             z.write(src, arcname=basename(src))
+    else:#None of them are zipped
+        shutil.copy2(src, dst)
 
 
 def main(args):
@@ -106,10 +110,10 @@ def main(args):
     if not lock_file(ccat):
         raise RuntimeError("The cloud catalog %s is locked!"%ccat)
 
-    if os.path.isfile(ccat):#The cloud is not empty
+    if isfile(ccat):#The cloud is not empty
 
         #Backup the local catalog (overwriting old backup)
-        if os.path.isfile(lcat):
+        if isfile(lcat):
             try:
                 logging.info("Removed old backup: %s.backup"%lcat)
                 os.remove("%s.backup"%lcat)
@@ -178,22 +182,30 @@ def parse_arguments():
         action="store_true"
     )
     args = parser.parse_args()
+    (lcat, ccat) = (args.local_catalog, args.cloud_catalog)
 
     if args.verbose:
         logging.basicConfig(level=logging.INFO)
 
-    if args.local_catalog is None:
+    if lcat is None:
         parser.error("No local catalog specified, use --local-catalog")
         raise argparse.ArgumentError
-    if args.cloud_catalog is None:
+    if ccat is None:
         parser.error("No cloud catalog specified, use --cloud-catalog")
         raise argparse.ArgumentError
 
-    if not os.path.isfile(args.local_catalog) and \
-       not os.path.isfile(args.cloud_catalog):
+    if not isfile(lcat) and not isfile(ccat):
         parser.error("No catalog exist! Either a local "\
                      "or a cloud catalog must exist")
         raise argparse.ArgumentError
+
+    #Make sure we don't overwrite a modified local catalog
+    #NB: we allow a small different (1 msec)) because of OS limitations
+    if isfile(lcat) and isfile(ccat):
+        if(os.path.getmtime(lcat) - 0.001 > os.path.getmtime(ccat)):
+            parser.error("The local catalog is newer than the cloud catalog. "
+                         "Please remove one of them: '%s' or '%s'"%(lcat,ccat))
+            raise argparse.ArgumentError
     return args
 
 
