@@ -2,21 +2,21 @@
 
 This project extent Adobe Lightroom with cloud support making it possible to access a catalog from different machines safely without corrupting the catalog.
 
-**Features**:
+##### Features:
   * Have a catalog file in a shared location, such as a folder in Google Drive, Dropbox, or a NAS, and have lrcloud synchronize the catalog between a local and the shared location.
   * A single executable
   * Support Smart Previews 
   * On-the-fly catalog compression 
 
-**Current limitations**:
+##### Current limitations:
   * The paths the photos in a shared catalog have to be identical thus a catalog cannot be shared between Window and OSX.
   * No GUI
-  * No simulation catalog access
+  * No simultaneous catalog access
 
-#### Please note that lrcloud is still in beta as is not ready for production
 
 Usage
 -----
+##### Please note that `lrcloud` is still in beta and is not ready for production
 
 ```
 ./lrcloud.py --help
