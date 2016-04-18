@@ -1,6 +1,6 @@
 # Lightroom Cloud Extension
 
-This project extent Adobe Lightroom with cloud support making it possible to access a catalog from different machines safely without corrupting the catalog.
+This project extend Adobe Lightroom with cloud support making it possible to access a catalog from different machines safely without corrupting the catalog.
 
 ##### Features:
   * Have a catalog file in a shared location, such as a folder in Google Drive, Dropbox, or a NAS, and have lrcloud synchronize the catalog between a local and the shared location.
