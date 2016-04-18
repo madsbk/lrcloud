@@ -14,6 +14,12 @@ from zipfile import ZIP_DEFLATED
 import tempfile
 
 
+if sys.version_info >= (3,):
+    import configparser as cparser
+else:
+    import ConfigParser as cparser
+
+
 def lock_file(filename):
     """Locks the file by writing a '.lock' file.
        Returns True when the file is locked and
@@ -26,6 +32,7 @@ def lock_file(filename):
         with open(lockfile, "w"):
             pass
     return True
+
 
 def unlock_file(filename):
     """Unlocks the file by remove a '.lock' file.
@@ -55,6 +62,7 @@ def copy_smart_previews(local_catalog, cloud_catalog, local2cloud=True):
     elif os.path.isdir(csmart):
         logging.info("Copy Smart Previews - cloud to local: %s => %s"%(csmart, lsmart))
         distutils.dir_util.copy_tree(csmart,lsmart, update=1)
+
 
 def copy_catalog(local_catalog, cloud_catalog, local2cloud=True):
     """Copy catalog files from local to cloud or
@@ -153,9 +161,61 @@ def main(args):
     unlock_file(ccat)
 
 
+def read_config_file(args):
+    """Reading the configure file and adds non-existing attributes to 'args'"""
+
+    if args.config_file is None or not isfile(args.config_file):
+        return
+
+    logging.info("Reading configure file: %s"%args.config_file)
+
+    config = cparser.ConfigParser()
+    config.read(args.config_file)
+    if not config.has_section('lrcloud'):
+        raise RuntimeError("Configure file has no [lrcloud] section!")
+
+    for (name, value) in config.items('lrcloud'):
+        if value == "True":
+            value = True
+        elif value == "False":
+            value = False
+        if getattr(args, name) is None:
+            setattr(args, name, value)
+
+
+def write_config_file(args):
+    """Writing the configure file with the attributes in 'args'"""
+
+    logging.info("Writing configure file: %s"%args.config_file)
+    if args.config_file is None:
+        return
+
+    #Let's add each attribute of 'args' to the configure file
+    config = cparser.ConfigParser()
+    config.add_section("lrcloud")
+    for p in [x for x in dir(args) if not x.startswith("_")]:
+        value = getattr(args, p)
+        if value is not None:
+            config.set('lrcloud', p, str(value))
+
+    with open(args.config_file, 'w') as f:
+        config.write(f)
+
+
 def parse_arguments():
     """Return arguments"""
-    parser = argparse.ArgumentParser(description='Cloud extension to Lightroom')
+
+    def default_config_path():
+        """Returns the platform specific default location of the configure file"""
+
+        if os.name == "nt":
+            return join(os.getenv('APPDATA'), "lrcloud.ini")
+        else:
+            return join(os.path.expanduser("~"), ".lrcloud.ini")
+
+    parser = argparse.ArgumentParser(
+                description='Cloud extension to Lightroom',
+                formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '--cloud-catalog',
         help='The cloud/shared catalog file e.g. located in Google Drive or Dropbox',
@@ -181,11 +241,19 @@ def parse_arguments():
         help="Don't Sync Smart Previews",
         action="store_true"
     )
+    parser.add_argument(
+        '--config-file',
+        help="Path to the configure (.ini) file",
+        type=str,
+        default=default_config_path()
+    )
     args = parser.parse_args()
-    (lcat, ccat) = (args.local_catalog, args.cloud_catalog)
 
     if args.verbose:
         logging.basicConfig(level=logging.INFO)
+
+    read_config_file(args)
+    (lcat, ccat) = (args.local_catalog, args.cloud_catalog)
 
     if lcat is None:
         parser.error("No local catalog specified, use --local-catalog")
@@ -218,4 +286,7 @@ if __name__ == "__main__":
     finally:
         unlock_file(args.local_catalog)
         unlock_file(args.cloud_catalog)
+
+    write_config_file(args)
+
 
