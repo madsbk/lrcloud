@@ -16,7 +16,7 @@ This project extend Adobe Lightroom with cloud support making it possible to acc
 
 Usage
 -----
-##### Please note that `lrcloud` is still in beta and is not ready for production
+##### Please note that `lrcloud` is still in beta so backup your catalog frequently :)
 
 ```
 ./lrcloud.py --help
