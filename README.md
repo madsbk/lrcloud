@@ -9,7 +9,7 @@ This project extend Adobe Lightroom with cloud support making it possible to acc
   * On-the-fly catalog compression 
 
 ##### Current limitations:
-  * The paths the photos in a shared catalog have to be identical thus a catalog cannot be shared between Window and OSX.
+  * The paths in the shared catalog are not converted thus a catalog cannot be shared between Window and OSX.
   * No GUI
   * No simultaneous catalog access
 
