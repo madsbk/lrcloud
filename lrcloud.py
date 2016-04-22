@@ -106,32 +106,121 @@ def copy_catalog(local_catalog, cloud_catalog, local2cloud=True):
         shutil.copy2(src, dst)
 
 
-def main(args):
-    lcat = args.local_catalog
-    ccat = args.cloud_catalog
+def cmd_init_push_to_cloud(args):
+    """Initiate the local catalog and push it the cloud"""
+
+    (lcat, ccat) = (args.local_catalog, args.cloud_catalog)
+    logging.info("[init-push-to-cloud]: %s => %s"%(lcat, ccat))
+
+    if not isfile(lcat):
+        args.error("[init-push-to-cloud] The local catalog does not exist: %s"%lcat)
+    if isfile(ccat):
+        args.error("[init-push-to-cloud] The cloud catalog already exist: %s"%ccat)
 
     #Let's "lock" the local catalog
+    logging.info("Locking local catalog: %s"%(lcat))
     if not lock_file(lcat):
         raise RuntimeError("The catalog %s is locked!"%lcat)
 
     #Let's "lock" the cloud catalog
+    logging.info("Locking cloud catalog: %s"%(ccat))
     if not lock_file(ccat):
         raise RuntimeError("The cloud catalog %s is locked!"%ccat)
 
-    if isfile(ccat):#The cloud is not empty
+    #Copy catalog from local to cloud
+    copy_catalog(lcat, ccat, local2cloud=True)
 
-        #Backup the local catalog (overwriting old backup)
-        if isfile(lcat):
-            try:
-                logging.info("Removed old backup: %s.backup"%lcat)
-                os.remove("%s.backup"%lcat)
-            except OSError:
-                pass
-            logging.info("Backup: %s => %s.backup"%(lcat, lcat))
-            shutil.move(lcat, "%s.backup"%lcat)
+    #Let's copy Smart Previews
+    if not args.no_smart_previews:
+        copy_smart_previews(lcat, ccat, local2cloud=True)
 
-        #Copy from cloud to local
-        copy_catalog(lcat, ccat, local2cloud=False)
+    #Finally,let's unlock the catalog files
+    logging.info("Unlocking local catalog: %s"%(lcat))
+    unlock_file(lcat)
+    logging.info("Unlocking cloud catalog: %s"%(ccat))
+    unlock_file(ccat)
+
+    logging.info("[init-push-to-cloud]: Success!")
+
+
+def cmd_init_pull_from_cloud(args):
+    """Initiate the local catalog by downloading the cloud catalog"""
+
+    (lcat, ccat) = (args.local_catalog, args.cloud_catalog)
+    logging.info("[init-pull-from-cloud]: %s => %s"%(ccat, lcat))
+
+    if isfile(lcat):
+        args.error("[init-pull-from-cloud] The local catalog already exist: %s"%lcat)
+    if not isfile(ccat):
+        args.error("[init-pull-from-cloud] The cloud catalog does not exist: %s"%ccat)
+
+    #Let's "lock" the local catalog
+    logging.info("Locking local catalog: %s"%(lcat))
+    if not lock_file(lcat):
+        raise RuntimeError("The catalog %s is locked!"%lcat)
+
+    #Let's "lock" the cloud catalog
+    logging.info("Locking cloud catalog: %s"%(ccat))
+    if not lock_file(ccat):
+        raise RuntimeError("The cloud catalog %s is locked!"%ccat)
+
+    #Copy from cloud to local
+    copy_catalog(lcat, ccat, local2cloud=False)
+
+    #Let's copy Smart Previews
+    if not args.no_smart_previews:
+        copy_smart_previews(lcat, ccat, local2cloud=False)
+
+    #Finally, let's unlock the catalog files
+    logging.info("Unlocking local catalog: %s"%(lcat))
+    unlock_file(lcat)
+    logging.info("Unlocking cloud catalog: %s"%(ccat))
+    unlock_file(ccat)
+
+    logging.info("[init-pull-from-cloud]: Success!")
+
+
+def cmd_normal(args):
+    """Normal procedure:
+        * Pull from cloud (if necessary)
+        * Run Lightroom
+        * Push to cloud
+    """
+
+    (lcat, ccat) = (args.local_catalog, args.cloud_catalog)
+
+    if not isfile(lcat):
+        args.error("The local catalog does not exist: %s"%lcat)
+    if not isfile(ccat):
+        args.error("The cloud catalog does not exist: %s"%ccat)
+
+    #Let's "lock" the local catalog
+    logging.info("Locking local catalog: %s"%(lcat))
+    if not lock_file(lcat):
+        raise RuntimeError("The catalog %s is locked!"%lcat)
+
+    #Let's "lock" the cloud catalog
+    logging.info("Locking cloud catalog: %s"%(ccat))
+    if not lock_file(ccat):
+        raise RuntimeError("The cloud catalog %s is locked!"%ccat)
+
+    #Make sure we don't overwrite a modified local catalog
+    #NB: we allow a small different (1 msec)) because of OS limitations
+    if(os.path.getmtime(lcat) - 0.001 > os.path.getmtime(ccat)):
+        args.error("The local catalog is newer than the cloud catalog. "
+                   "Please remove one of them: '%s' or '%s'"%(lcat,ccat))
+
+    #Backup the local catalog (overwriting old backup)
+    try:
+        logging.info("Removed old backup: %s.backup"%lcat)
+        os.remove("%s.backup"%lcat)
+    except OSError:
+        pass
+    logging.info("Backup: %s => %s.backup"%(lcat, lcat))
+    shutil.move(lcat, "%s.backup"%lcat)
+
+    #Copy from cloud to local
+    copy_catalog(lcat, ccat, local2cloud=False)
 
     #Let's copy Smart Previews
     if not args.no_smart_previews:
@@ -194,6 +283,9 @@ def write_config_file(args):
     config = cparser.ConfigParser()
     config.add_section("lrcloud")
     for p in [x for x in dir(args) if not x.startswith("_")]:
+        if p in ['init_push_to_cloud', 'init_pull_from_cloud', \
+                 'verbose', 'config_file', 'error']:
+            continue#We ignore some attributes
         value = getattr(args, p)
         if value is not None:
             config.set('lrcloud', p, str(value))
@@ -216,6 +308,18 @@ def parse_arguments():
     parser = argparse.ArgumentParser(
                 description='Cloud extension to Lightroom',
                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    cmd_group = parser.add_mutually_exclusive_group()
+    cmd_group.add_argument(
+        '--init-push-to-cloud',
+        help='Initiate the local catalog and push it to the cloud',
+        action="store_true"
+    )
+    cmd_group.add_argument(
+        '--init-pull-from-cloud',
+        help='Download the cloud catalog and initiate a corresponding local catalog',
+        action="store_true"
+    )
     parser.add_argument(
         '--cloud-catalog',
         help='The cloud/shared catalog file e.g. located in Google Drive or Dropbox',
@@ -248,6 +352,7 @@ def parse_arguments():
         default=default_config_path()
     )
     args = parser.parse_args()
+    args.error = parser.error
 
     if args.verbose:
         logging.basicConfig(level=logging.INFO)
@@ -257,15 +362,15 @@ def parse_arguments():
 
     if lcat is None:
         parser.error("No local catalog specified, use --local-catalog")
-        raise argparse.ArgumentError
     if ccat is None:
         parser.error("No cloud catalog specified, use --cloud-catalog")
-        raise argparse.ArgumentError
+
+    return args
+
 
     if not isfile(lcat) and not isfile(ccat):
         parser.error("No catalog exist! Either a local "\
                      "or a cloud catalog must exist")
-        raise argparse.ArgumentError
 
     #Make sure we don't overwrite a modified local catalog
     #NB: we allow a small different (1 msec)) because of OS limitations
@@ -273,16 +378,19 @@ def parse_arguments():
         if(os.path.getmtime(lcat) - 0.001 > os.path.getmtime(ccat)):
             parser.error("The local catalog is newer than the cloud catalog. "
                          "Please remove one of them: '%s' or '%s'"%(lcat,ccat))
-            raise argparse.ArgumentError
     return args
 
 
 if __name__ == "__main__":
 
     args = parse_arguments()
-
     try:
-        main(args)
+        if args.init_push_to_cloud:
+            cmd_init_push_to_cloud(args)
+        elif args.init_pull_from_cloud:
+            cmd_init_pull_from_cloud(args)
+        else:
+            cmd_normal(args)
     finally:
         unlock_file(args.local_catalog)
         unlock_file(args.cloud_catalog)
