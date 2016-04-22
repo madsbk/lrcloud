@@ -110,7 +110,7 @@ def copy_catalog(local_catalog, cloud_catalog, local2cloud=True):
         shutil.copy2(src, dst)
 
 
-def catalog2meta_file(catalog_path):
+def catalog2meta_file(catalog):
     """Return the meta-data file name associated with 'catalog' """
     return "%s.lrcloud.ini"%catalog
 
