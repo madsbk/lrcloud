@@ -12,7 +12,11 @@ import traceback
 import zipfile
 from zipfile import ZIP_DEFLATED
 import tempfile
+import hashlib
+from functools import partial
+from datetime import datetime
 
+DATETIME_FORMAT='%Y-%m-%d %H:%M:%S.%f'
 
 if sys.version_info >= (3,):
     import configparser as cparser
@@ -90,7 +94,7 @@ def copy_catalog(local_catalog, cloud_catalog, local2cloud=True):
                 z.extractall(tmpdir)
                 if len(z.namelist()) != 1:
                     raise RuntimeError("The zip file '%s' should only have one "\
-                                       "compressed file")
+                                       "compressed file"%src)
                 tmpfile = join(tmpdir,z.namelist()[0])
                 try:
                     os.remove(dst)
@@ -106,6 +110,85 @@ def copy_catalog(local_catalog, cloud_catalog, local2cloud=True):
         shutil.copy2(src, dst)
 
 
+def catalog2meta_file(catalog_path):
+    """Return the meta-data file name associated with 'catalog' """
+    return "%s.lrcloud.ini"%catalog
+
+
+def hashsum(filename):
+    """Return a hash of the file From <http://stackoverflow.com/a/7829658>"""
+
+    with open(filename, mode='rb') as f:
+        d = hashlib.sha1()
+        for buf in iter(partial(f.read, 2**20), b''):
+            d.update(buf)
+    return d.hexdigest()
+
+
+def write_local_meta_file(args):
+    lcat = args.local_catalog
+    mfile = catalog2meta_file(lcat)
+
+    #Let's hash the local catalog file
+    lcat_hash = hashsum(lcat)
+    logging.info("The hash of the local catalog file: %s"%lcat_hash)
+
+    #Let's write the meta-data for the 'master' catalog file
+    logging.info("Writing local meta-data file: %s"%mfile)
+    config = cparser.ConfigParser()
+    config.add_section("master")
+    config.set('master', "hash", lcat_hash)
+    utcnow = datetime.utcnow().strftime(DATETIME_FORMAT)[:-4]
+    config.set('master', "modification_utc", utcnow)
+    with open(mfile, 'w') as f:
+        config.write(f)
+
+
+def read_meta_file(catalog):
+    """Returns a dict of dict where the first dict represents
+       sections and the second dict represents options"""
+
+    mfile = catalog2meta_file(catalog)
+    assert isfile(mfile)
+
+    #Let's read the meta-data of the catalog file
+    logging.info("Reading meta-data file: %s"%mfile)
+    config = cparser.ConfigParser()
+    config.read(mfile)
+
+    if not config.has_section("master"):
+        raise RuntimeError("The meta-data file '%s' has no master section"%mfile)
+
+    ret = {}
+    for sec in config.sections():
+        ret[sec] = {}
+        for (name, value) in config.items(sec):
+            if value == "True":
+                value = True
+            elif value == "False":
+                value = False
+
+            try:# Try to convert the value to a time object
+               t = datetime.strptime(value, DATETIME_FORMAT)
+               value = t
+            except ValueError:
+                pass
+            ret[sec][name] = value
+    return ret
+
+
+def meta_file_sanity(catalog):
+    """Check the sanity of the meta-data associated the 'catalog' """
+
+    meta = read_meta_file(catalog)
+    lcat_hash1 = meta["master"]["hash"]
+    lcat_hash2 = hashsum(catalog)
+    if lcat_hash1 != lcat_hash2:
+        raise RuntimeError("The hash in the meta-data file '%s' does not "\
+                           "equal the hash of the catalog file '%s': %s != %s"\
+                           %(catalog2meta_file(catalog), catalog, lcat_hash1, lcat_hash2))
+
+
 def cmd_init_push_to_cloud(args):
     """Initiate the local catalog and push it the cloud"""
 
@@ -117,6 +200,12 @@ def cmd_init_push_to_cloud(args):
     if isfile(ccat):
         args.error("[init-push-to-cloud] The cloud catalog already exist: %s"%ccat)
 
+    (lmeta, cmeta) = (catalog2meta_file(lcat), catalog2meta_file(ccat))
+    if isfile(lmeta):
+        args.error("[init-push-to-cloud] The local meta-data already exist: %s"%lmeta)
+    if isfile(cmeta):
+        args.error("[init-push-to-cloud] The cloud meta-data already exist: %s"%cmeta)
+
     #Let's "lock" the local catalog
     logging.info("Locking local catalog: %s"%(lcat))
     if not lock_file(lcat):
@@ -126,6 +215,11 @@ def cmd_init_push_to_cloud(args):
     logging.info("Locking cloud catalog: %s"%(ccat))
     if not lock_file(ccat):
         raise RuntimeError("The cloud catalog %s is locked!"%ccat)
+
+    # Write meta-data both to local and cloud
+    write_local_meta_file(args)
+    logging.info("Copying local meta-data to cloud: %s => %s"%(lmeta, cmeta))
+    shutil.copy2(lmeta, cmeta)
 
     #Copy catalog from local to cloud
     copy_catalog(lcat, ccat, local2cloud=True)
@@ -154,6 +248,12 @@ def cmd_init_pull_from_cloud(args):
     if not isfile(ccat):
         args.error("[init-pull-from-cloud] The cloud catalog does not exist: %s"%ccat)
 
+    (lmeta, cmeta) = (catalog2meta_file(lcat), catalog2meta_file(ccat))
+    if isfile(lmeta):
+        args.error("[init-pull-from-cloud] The local meta-data already exist: %s"%lmeta)
+    if not isfile(cmeta):
+        args.error("[init-pull-from-cloud] The cloud meta-data does not exist: %s"%cmeta)
+
     #Let's "lock" the local catalog
     logging.info("Locking local catalog: %s"%(lcat))
     if not lock_file(lcat):
@@ -166,6 +266,9 @@ def cmd_init_pull_from_cloud(args):
 
     #Copy from cloud to local
     copy_catalog(lcat, ccat, local2cloud=False)
+    logging.info("Copying cloud meta-data to local: %s => %s"%(cmeta, lmeta))
+    shutil.copy2(cmeta, lmeta)
+    meta_file_sanity(lcat)
 
     #Let's copy Smart Previews
     if not args.no_smart_previews:
@@ -204,23 +307,31 @@ def cmd_normal(args):
     if not lock_file(ccat):
         raise RuntimeError("The cloud catalog %s is locked!"%ccat)
 
-    #Make sure we don't overwrite a modified local catalog
-    #NB: we allow a small different (1 msec)) because of OS limitations
-    if(os.path.getmtime(lcat) - 0.001 > os.path.getmtime(ccat)):
-        args.error("The local catalog is newer than the cloud catalog. "
-                   "Please remove one of them: '%s' or '%s'"%(lcat,ccat))
+    meta_file_sanity(lcat)
+    ldict = read_meta_file(lcat)
+    cdict = read_meta_file(ccat)
 
-    #Backup the local catalog (overwriting old backup)
-    try:
-        logging.info("Removed old backup: %s.backup"%lcat)
-        os.remove("%s.backup"%lcat)
-    except OSError:
-        pass
-    logging.info("Backup: %s => %s.backup"%(lcat, lcat))
-    shutil.move(lcat, "%s.backup"%lcat)
+    if ldict['master']['hash'] != cdict['master']['hash']:
+        logging.info("The local catalog needs updating")
 
-    #Copy from cloud to local
-    copy_catalog(lcat, ccat, local2cloud=False)
+        #Make sure we don't overwrite a modified local catalog
+        if ldict['master']['modification_utc'] > cdict['master']['modification_utc']:
+            raise RuntimeError("The local catalog is newer than the cloud catalog. "
+                               "Please remove one of them: '%s' or '%s'"%(lcat,ccat))
+
+        #Backup the local catalog (overwriting old backup)
+        try:
+            logging.info("Removed old backup: %s.backup"%lcat)
+            os.remove("%s.backup"%lcat)
+        except OSError:
+            pass
+        logging.info("Backup: %s => %s.backup"%(lcat, lcat))
+        shutil.move(lcat, "%s.backup"%lcat)
+
+        #Copy from cloud to local
+        copy_catalog(lcat, ccat, local2cloud=False)
+    else:
+        logging.info("The local catalog is up to date")
 
     #Let's copy Smart Previews
     if not args.no_smart_previews:
@@ -236,6 +347,12 @@ def cmd_normal(args):
         subprocess.call([args.lightroom_exec, lcat])
     logging.info("Lightroom exit")
 
+    # Write meta-data both to local and cloud
+    (lmeta, cmeta) = (catalog2meta_file(lcat), catalog2meta_file(ccat))
+    write_local_meta_file(args)
+    logging.info("Copying local meta-data to cloud: %s => %s"%(lmeta, cmeta))
+    shutil.copy2(lmeta, cmeta)
+
     #Copy from local to cloud
     copy_catalog(lcat, ccat, local2cloud=True)
 
@@ -243,7 +360,7 @@ def cmd_normal(args):
     if not args.no_smart_previews:
         copy_smart_previews(lcat, ccat, local2cloud=True)
 
-    #Finally,let's unlock the catalog files
+    #Finally, let's unlock the catalog files
     logging.info("Unlocking local catalog: %s"%(lcat))
     unlock_file(lcat)
     logging.info("Unlocking cloud catalog: %s"%(ccat))
