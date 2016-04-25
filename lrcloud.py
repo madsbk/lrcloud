@@ -485,19 +485,6 @@ def parse_arguments():
     return args
 
 
-    if not isfile(lcat) and not isfile(ccat):
-        parser.error("No catalog exist! Either a local "\
-                     "or a cloud catalog must exist")
-
-    #Make sure we don't overwrite a modified local catalog
-    #NB: we allow a small different (1 msec)) because of OS limitations
-    if isfile(lcat) and isfile(ccat):
-        if(os.path.getmtime(lcat) - 0.001 > os.path.getmtime(ccat)):
-            parser.error("The local catalog is newer than the cloud catalog. "
-                         "Please remove one of them: '%s' or '%s'"%(lcat,ccat))
-    return args
-
-
 if __name__ == "__main__":
 
     args = parse_arguments()
