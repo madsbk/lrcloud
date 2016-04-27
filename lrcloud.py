@@ -125,68 +125,42 @@ def hashsum(filename):
     return d.hexdigest()
 
 
-def write_local_meta_file(args):
-    lcat = args.local_catalog
-    mfile = catalog2meta_file(lcat)
+class MetaFile:
+    """Representation of a meta-file"""
+    def __init__(self, file_path):
+        self.file_path = file_path
+        config = cparser.ConfigParser()
+        config.read(file_path)
+        logging.info("Read meta-data file: %s"%file_path)
+        self._data = {}
+        for sec in config.sections():
+            self._data[sec] = {}
+            for (name, value) in config.items(sec):
+                if value == "True":
+                    value = True
+                elif value == "False":
+                    value = False
+                try:# Try to convert the value to a time object
+                   t = datetime.strptime(value, DATETIME_FORMAT)
+                   value = t
+                except ValueError:
+                    pass
+                self._data[sec][name] = value
 
-    #Let's hash the local catalog file
-    lcat_hash = hashsum(lcat)
-    logging.info("The hash of the local catalog file: %s"%lcat_hash)
+    def __getitem__(self, section):
+        if section not in self._data:
+            self._data[section] = {}
+        return self._data[section]
 
-    #Let's write the meta-data for the 'master' catalog file
-    logging.info("Writing local meta-data file: %s"%mfile)
-    config = cparser.ConfigParser()
-    config.add_section("master")
-    config.set('master', "hash", lcat_hash)
-    utcnow = datetime.utcnow().strftime(DATETIME_FORMAT)[:-4]
-    config.set('master', "modification_utc", utcnow)
-    with open(mfile, 'w') as f:
-        config.write(f)
-
-
-def read_meta_file(catalog):
-    """Returns a dict of dict where the first dict represents
-       sections and the second dict represents options"""
-
-    mfile = catalog2meta_file(catalog)
-    assert isfile(mfile)
-
-    #Let's read the meta-data of the catalog file
-    logging.info("Reading meta-data file: %s"%mfile)
-    config = cparser.ConfigParser()
-    config.read(mfile)
-
-    if not config.has_section("master"):
-        raise RuntimeError("The meta-data file '%s' has no master section"%mfile)
-
-    ret = {}
-    for sec in config.sections():
-        ret[sec] = {}
-        for (name, value) in config.items(sec):
-            if value == "True":
-                value = True
-            elif value == "False":
-                value = False
-
-            try:# Try to convert the value to a time object
-               t = datetime.strptime(value, DATETIME_FORMAT)
-               value = t
-            except ValueError:
-                pass
-            ret[sec][name] = value
-    return ret
-
-
-def meta_file_sanity(catalog):
-    """Check the sanity of the meta-data associated the 'catalog' """
-
-    meta = read_meta_file(catalog)
-    lcat_hash1 = meta["master"]["hash"]
-    lcat_hash2 = hashsum(catalog)
-    if lcat_hash1 != lcat_hash2:
-        raise RuntimeError("The hash in the meta-data file '%s' does not "\
-                           "equal the hash of the catalog file '%s': %s != %s"\
-                           %(catalog2meta_file(catalog), catalog, lcat_hash1, lcat_hash2))
+    def flush(self):
+        logging.info("Writing meta-data file: %s"%self.file_path)
+        config = cparser.ConfigParser()
+        for (sec, options) in self._data.items():
+            config.add_section(sec)
+            for (name, value) in options.items():
+                config.set(sec, name, str(value))
+        with open(self.file_path, 'w') as f:
+            config.write(f)
 
 
 def cmd_init_push_to_cloud(args):
@@ -217,7 +191,10 @@ def cmd_init_push_to_cloud(args):
         raise RuntimeError("The cloud catalog %s is locked!"%ccat)
 
     # Write meta-data both to local and cloud
-    write_local_meta_file(args)
+    mfile = MetaFile(lmeta)
+    mfile['master']['hash'] = hashsum(lcat)
+    mfile['master']['modification_utc'] = datetime.utcnow().strftime(DATETIME_FORMAT)[:-4]
+    mfile.flush()
     logging.info("Copying local meta-data to cloud: %s => %s"%(lmeta, cmeta))
     shutil.copy2(lmeta, cmeta)
 
@@ -268,7 +245,6 @@ def cmd_init_pull_from_cloud(args):
     copy_catalog(lcat, ccat, local2cloud=False)
     logging.info("Copying cloud meta-data to local: %s => %s"%(cmeta, lmeta))
     shutil.copy2(cmeta, lmeta)
-    meta_file_sanity(lcat)
 
     #Let's copy Smart Previews
     if not args.no_smart_previews:
@@ -291,6 +267,7 @@ def cmd_normal(args):
     """
 
     (lcat, ccat) = (args.local_catalog, args.cloud_catalog)
+    (lmeta, cmeta) = (catalog2meta_file(lcat), catalog2meta_file(ccat))
 
     if not isfile(lcat):
         args.error("The local catalog does not exist: %s"%lcat)
@@ -307,15 +284,14 @@ def cmd_normal(args):
     if not lock_file(ccat):
         raise RuntimeError("The cloud catalog %s is locked!"%ccat)
 
-    meta_file_sanity(lcat)
-    ldict = read_meta_file(lcat)
-    cdict = read_meta_file(ccat)
+    lmfile = MetaFile(lmeta)
+    cmfile = MetaFile(cmeta)
 
-    if ldict['master']['hash'] != cdict['master']['hash']:
+    if lmfile['master']['hash'] != cmfile['master']['hash']:
         logging.info("The local catalog needs updating")
 
         #Make sure we don't overwrite a modified local catalog
-        if ldict['master']['modification_utc'] > cdict['master']['modification_utc']:
+        if lmfile['master']['modification_utc'] > cmfile['master']['modification_utc']:
             raise RuntimeError("The local catalog is newer than the cloud catalog. "
                                "Please remove one of them: '%s' or '%s'"%(lcat,ccat))
 
@@ -348,8 +324,10 @@ def cmd_normal(args):
     logging.info("Lightroom exit")
 
     # Write meta-data both to local and cloud
-    (lmeta, cmeta) = (catalog2meta_file(lcat), catalog2meta_file(ccat))
-    write_local_meta_file(args)
+    mfile = MetaFile(lmeta)
+    mfile['master']['hash'] = hashsum(lcat)
+    mfile['master']['modification_utc'] = datetime.utcnow().strftime(DATETIME_FORMAT)[:-4]
+    mfile.flush()
     logging.info("Copying local meta-data to cloud: %s => %s"%(lmeta, cmeta))
     shutil.copy2(lmeta, cmeta)
 
