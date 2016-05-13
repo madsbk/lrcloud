@@ -609,9 +609,7 @@ def parse_arguments():
 
     return args
 
-
-if __name__ == "__main__":
-
+def main():
     args = parse_arguments()
     try:
         if args.init_push_to_cloud:
@@ -624,5 +622,9 @@ if __name__ == "__main__":
         unlock_file(args.local_catalog)
 
     write_config_file(args)
+
+if __name__ == "__main__":
+    main()
+
 
 
