@@ -42,11 +42,11 @@ setup(
         'Development Status :: 3 - Alpha',
 
         # Indicate who your project is intended for
-        'Intended Audience :: Developers',
-        'Topic :: Software Development :: Build Tools',
+        'Intended Audience :: End Users/Desktop',
+        'Topic :: Multimedia',
 
         # Pick your license as you wish (should match "license" above)
-        'License :: OSI Approved :: MIT License',
+        'License :: OSI Approved :: GNU General Public License (GPL)',
 
         # Specify the Python versions you support here. In particular, ensure
         # that you indicate whether you support Python 2, Python 3 or both.
@@ -55,7 +55,7 @@ setup(
     ],
 
     # What does your project relate to?
-    keywords='sample setuptools development',
+    keywords='Lightroom Cloud',
 
     # You can just specify the packages manually here if your project is
     # simple. Or you can use find_packages().
