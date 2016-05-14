@@ -9,8 +9,6 @@ import logging
 import distutils.dir_util
 from os.path import join, basename, dirname, isfile, abspath
 import traceback
-import zipfile
-from zipfile import ZIP_DEFLATED
 import tempfile
 import hashlib
 from functools import partial
@@ -479,7 +477,7 @@ def write_config_file(args):
         config.write(f)
 
 
-def parse_arguments():
+def parse_arguments(argv=None):
     """Return arguments"""
 
     def default_config_path():
@@ -552,7 +550,7 @@ def parse_arguments():
         #default="./jptch $in1 $patch $out"
         default="bspatch $in1 $out $patch"
     )
-    args = parser.parse_args()
+    args = parser.parse_args(args=argv)
     args.error = parser.error
 
     if args.verbose:
@@ -568,8 +566,8 @@ def parse_arguments():
 
     return args
 
-def main():
-    args = parse_arguments()
+def main(argv=None):
+    args = parse_arguments(argv)
     try:
         if args.init_push_to_cloud:
             cmd_init_push_to_cloud(args)
