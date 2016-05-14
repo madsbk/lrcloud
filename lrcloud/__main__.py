@@ -18,6 +18,8 @@ from datetime import datetime
 import re
 import pprint
 
+from . import util
+
 DATETIME_FORMAT='%Y-%m-%d %H:%M:%S.%f'
 
 if sys.version_info >= (3,):
@@ -68,49 +70,6 @@ def copy_smart_previews(local_catalog, cloud_catalog, local2cloud=True):
     elif os.path.isdir(csmart):
         logging.info("Copy Smart Previews - cloud to local: %s => %s"%(csmart, lsmart))
         distutils.dir_util.copy_tree(csmart,lsmart, update=1)
-
-
-def copy_catalog(local_catalog, cloud_catalog, local2cloud=True):
-    """Copy catalog files from local to cloud or
-       vica versa when 'local2cloud==False'
-    """
-
-    (lcat, ccat) = (local_catalog, cloud_catalog)
-
-    #Find the source and destination catalog
-    if local2cloud:
-        logging.info("Copy catalog - local to cloud: %s => %s"%(lcat, ccat))
-        (src, dst) = (lcat, ccat)
-    else:
-        logging.info("Copy catalog - cloud to local: %s => %s"%(ccat, lcat))
-        (src, dst) = (ccat, lcat)
-
-    (szip, dzip) = (src.endswith(".zip"), dst.endswith(".zip"))
-
-    if szip and dzip:#If both zipped, we can simply use copy
-        shutil.copy2(src, dst)
-    elif szip:
-        with zipfile.ZipFile(src, mode='r') as z:
-            tmpdir = tempfile.mkdtemp()
-            try:
-                z.extractall(tmpdir)
-                if len(z.namelist()) != 1:
-                    raise RuntimeError("The zip file '%s' should only have one "\
-                                       "compressed file"%src)
-                tmpfile = join(tmpdir,z.namelist()[0])
-                try:
-                    os.remove(dst)
-                except OSError:
-                    pass
-                shutil.move(tmpfile, dst)
-                print tmpfile, dst
-            finally:
-                shutil.rmtree(tmpdir, ignore_errors=True)
-    elif dzip:
-        with zipfile.ZipFile(dst, mode='w', compression=ZIP_DEFLATED) as z:
-            z.write(src, arcname=basename(src))
-    else:#None of them are zipped
-        shutil.copy2(src, dst)
 
 
 def hashsum(filename):
@@ -267,7 +226,7 @@ def cmd_init_push_to_cloud(args):
         raise RuntimeError("The catalog %s is locked!"%lcat)
 
     #Copy catalog from local to cloud, which becomes the new "base" changeset
-    copy_catalog(lcat, ccat, local2cloud=True)
+    util.copy(lcat, ccat)
 
     # Write meta-data both to local and cloud
     mfile = MetaFile(lmeta)
@@ -320,7 +279,7 @@ def cmd_init_pull_from_cloud(args):
         raise RuntimeError("The catalog %s is locked!"%lcat)
 
     #Copy base from cloud to local
-    copy_catalog(lcat, ccat, local2cloud=False)
+    util.copy(ccat, lcat)
 
     #Apply changesets
     cloudDAG = ChangesetDAG(ccat)
@@ -330,7 +289,7 @@ def cmd_init_pull_from_cloud(args):
             os.remove("/tmp/tmp.patch")
         except OSError:
             pass
-        copy_catalog(node.mfile['changeset']['filename'], "/tmp/tmp.patch", local2cloud=True)
+        util.copy(node.mfile['changeset']['filename'], "/tmp/tmp.patch")
         print "mv %s %s"%(lcat, "/tmp/tmp.lcat")
         shutil.move(lcat, "/tmp/tmp.lcat")
 
@@ -402,7 +361,7 @@ def cmd_normal(args):
             os.remove("/tmp/tmp.patch")
         except OSError:
             pass
-        copy_catalog(node.mfile['changeset']['filename'], "/tmp/tmp.patch", local2cloud=True)
+        util.copy(node.mfile['changeset']['filename'], "/tmp/tmp.patch")
         print "mv %s %s"%(lcat, "/tmp/tmp.lcat")
         shutil.move(lcat, "/tmp/tmp.lcat")
 
@@ -443,7 +402,7 @@ def cmd_normal(args):
     subprocess.call(args.diff_cmd, shell=True)
 
     patch = "%s_%s.zip"%(ccat, hashsum("/tmp/tmp.patch"))
-    copy_catalog("/tmp/tmp.patch", patch, local2cloud=True)
+    util.copy("/tmp/tmp.patch", patch)
 
     # Write cloud meta-data
     mfile = MetaFile("%s.lrcloud"%patch)
