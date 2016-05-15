@@ -17,14 +17,10 @@ import re
 import pprint
 
 from . import util
+from .metafile import MetaFile
+from . import config_parser
 
 DATETIME_FORMAT='%Y-%m-%d %H:%M:%S.%f'
-
-if sys.version_info >= (3,):
-    import configparser as cparser
-else:
-    import ConfigParser as cparser
-
 
 def lock_file(filename):
     """Locks the file by writing a '.lock' file.
@@ -79,46 +75,6 @@ def hashsum(filename):
             d.update(buf)
     return d.hexdigest()
 
-
-class MetaFile:
-    """Representation of a meta-file"""
-
-    def __init__(self, file_path):
-        self.file_path = file_path
-        config = cparser.ConfigParser()
-        config.read(file_path)
-        logging.info("Read meta-data file: %s"%file_path)
-        self._data = {}
-        for sec in config.sections():
-            self._data[sec] = {}
-            for (name, value) in config.items(sec):
-                if value == "True":
-                    value = True
-                elif value == "False":
-                    value = False
-                try:# Try to convert the value to a time object
-                   t = datetime.strptime(value, DATETIME_FORMAT)
-                   value = t
-                except ValueError:
-                    pass
-                except TypeError:
-                    pass
-                self._data[sec][name] = value
-
-    def __getitem__(self, section):
-        if section not in self._data:
-            self._data[section] = {}
-        return self._data[section]
-
-    def flush(self):
-        logging.info("Writing meta-data file: %s"%self.file_path)
-        config = cparser.ConfigParser()
-        for (sec, options) in self._data.items():
-            config.add_section(sec)
-            for (name, value) in options.items():
-                config.set(sec, name, str(value))
-        with open(self.file_path, 'w') as f:
-            config.write(f)
 
 class Node:
     def __init__(self, mfile):
@@ -288,7 +244,7 @@ def cmd_init_pull_from_cloud(args):
         except OSError:
             pass
         util.copy(node.mfile['changeset']['filename'], "/tmp/tmp.patch")
-        print "mv %s %s"%(lcat, "/tmp/tmp.lcat")
+        logging.info("mv %s %s"%(lcat, "/tmp/tmp.lcat"))
         shutil.move(lcat, "/tmp/tmp.lcat")
 
         cmd = args.patch_cmd.replace("$in1", "/tmp/tmp.lcat")\
@@ -325,6 +281,7 @@ def cmd_normal(args):
         * Run Lightroom
         * Push to cloud
     """
+    logging.info("cmd_normal")
 
     (lcat, ccat) = (args.local_catalog, args.cloud_catalog)
     (lmeta, cmeta) = ("%s.lrcloud"%lcat, "%s.lrcloud"%ccat)
@@ -387,11 +344,13 @@ def cmd_normal(args):
     unlock_file(lcat)
 
     #Now we can start Lightroom
-    logging.info("Starting Lightroom: %s %s"%(args.lightroom_exec, lcat))
-    if args.lightroom_exec is not None or True:
-        #subprocess.call(args.lightroom_exec, lcat)
-        subprocess.call("echo hej >> %s"%lcat, shell=True)
-    logging.info("Lightroom exit")
+    if args.lightroom_exec_debug:
+        logging.info("Debug Lightroom appending '%s' to %s"%(args.lightroom_exec_debug, lcat))
+        with open(lcat, "a") as f:
+            f.write("%s\n"%args.lightroom_exec_debug)
+    elif args.lightroom_exec:
+        logging.info("Starting Lightroom: %s %s"%(args.lightroom_exec, lcat))
+        subprocess.call(args.lightroom_exec, lcat)
 
     args.diff_cmd = args.diff_cmd.replace("$in1", "%s.backup"%lcat)\
                                  .replace("$in2", lcat)\
@@ -433,50 +392,6 @@ def cmd_normal(args):
     unlock_file(lcat)
 
 
-def read_config_file(args):
-    """Reading the configure file and adds non-existing attributes to 'args'"""
-
-    if args.config_file is None or not isfile(args.config_file):
-        return
-
-    logging.info("Reading configure file: %s"%args.config_file)
-
-    config = cparser.ConfigParser()
-    config.read(args.config_file)
-    if not config.has_section('lrcloud'):
-        raise RuntimeError("Configure file has no [lrcloud] section!")
-
-    for (name, value) in config.items('lrcloud'):
-        if value == "True":
-            value = True
-        elif value == "False":
-            value = False
-        if getattr(args, name) is None:
-            setattr(args, name, value)
-
-
-def write_config_file(args):
-    """Writing the configure file with the attributes in 'args'"""
-
-    logging.info("Writing configure file: %s"%args.config_file)
-    if args.config_file is None:
-        return
-
-    #Let's add each attribute of 'args' to the configure file
-    config = cparser.ConfigParser()
-    config.add_section("lrcloud")
-    for p in [x for x in dir(args) if not x.startswith("_")]:
-        if p in ['init_push_to_cloud', 'init_pull_from_cloud', \
-                 'verbose', 'config_file', 'error']:
-            continue#We ignore some attributes
-        value = getattr(args, p)
-        if value is not None:
-            config.set('lrcloud', p, str(value))
-
-    with open(args.config_file, 'w') as f:
-        config.write(f)
-
-
 def parse_arguments(argv=None):
     """Return arguments"""
 
@@ -513,9 +428,15 @@ def parse_arguments(argv=None):
         help='The local Lightroom catalog file',
         type=lambda x: os.path.expanduser(x)
     )
-    parser.add_argument(
+    lr_exec = parser.add_mutually_exclusive_group()
+    lr_exec.add_argument(
         '--lightroom-exec',
         help='The Lightroom executable file',
+        type=str
+    )
+    lr_exec.add_argument(
+        '--lightroom-exec-debug',
+        help='Instead of running Lightroom, append data to the end of the catalog file',
         type=str
     )
     parser.add_argument(
@@ -559,7 +480,7 @@ def parse_arguments(argv=None):
     if args.verbose:
         logging.basicConfig(level=logging.INFO)
 
-    read_config_file(args)
+    config_parser.read(args)
     (lcat, ccat) = (args.local_catalog, args.cloud_catalog)
 
     if lcat is None:
@@ -581,7 +502,7 @@ def main(argv=None):
     finally:
         unlock_file(args.local_catalog)
 
-    write_config_file(args)
+    config_parser.write(args)
 
 if __name__ == "__main__":
     main()

@@ -4,6 +4,7 @@ from zipfile import ZIP_DEFLATED
 from os.path import join, basename, dirname, isfile, abspath
 import tempfile
 import logging
+import os
 
 def copy(src, dst):
     """File copy that support compress and decompress of zip files"""
