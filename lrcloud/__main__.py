@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
 
 import argparse
 import os
@@ -317,7 +320,7 @@ def cmd_normal(args):
         except OSError:
             pass
         util.copy(node.mfile['changeset']['filename'], "/tmp/tmp.patch")
-        print "mv %s %s"%(lcat, "/tmp/tmp.lcat")
+        logging.info("mv %s %s"%(lcat, "/tmp/tmp.lcat"))
         shutil.move(lcat, "/tmp/tmp.lcat")
 
         cmd = args.patch_cmd.replace("$in1", "/tmp/tmp.lcat")\
