@@ -10,6 +10,13 @@ else:
 import logging
 from os.path import join, basename, dirname, isfile, abspath
 
+IGNORE_ARGS = ['init_push_to_cloud',
+               'init_pull_from_cloud',
+               'verbose',
+               'config_file',
+               'error',
+               'lightroom_exec_debug']
+
 def read(args):
     """Reading the configure file and adds non-existing attributes to 'args'"""
 
@@ -43,8 +50,7 @@ def write(args):
     config = cparser.ConfigParser()
     config.add_section("lrcloud")
     for p in [x for x in dir(args) if not x.startswith("_")]:
-        if p in ['init_push_to_cloud', 'init_pull_from_cloud', \
-                 'verbose', 'config_file', 'error']:
+        if p in IGNORE_ARGS:
             continue#We ignore some attributes
         value = getattr(args, p)
         if value is not None:
