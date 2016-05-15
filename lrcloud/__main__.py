@@ -553,6 +553,9 @@ def parse_arguments(argv=None):
     args = parser.parse_args(args=argv)
     args.error = parser.error
 
+    if args.config_file in ['', 'none', 'None', "''", '""']:
+        args.config_file = None
+
     if args.verbose:
         logging.basicConfig(level=logging.INFO)
 
