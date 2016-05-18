@@ -244,17 +244,7 @@ def cmd_init_pull_from_cloud(args):
     #Apply changesets
     cloudDAG = ChangesetDAG(ccat)
     path = cloudDAG.path(cloudDAG.root.hash, cloudDAG.leafs[0].hash)
-    for node in path:
-        util.remove("/tmp/tmp.patch")
-        util.copy(node.mfile['changeset']['filename'], "/tmp/tmp.patch")
-        logging.info("mv %s %s"%(lcat, "/tmp/tmp.lcat"))
-        shutil.move(lcat, "/tmp/tmp.lcat")
-
-        cmd = args.patch_cmd.replace("$in1", "/tmp/tmp.lcat")\
-                            .replace("$patch", "/tmp/tmp.patch")\
-                            .replace("$out", lcat)
-        logging.info("Patch: %s"%cmd)
-        subprocess.call(cmd, shell=True)
+    util.apply_changesets(args, path, lcat)
 
     # Write meta-data both to local and cloud
     mfile = MetaFile(lmeta)
@@ -310,17 +300,7 @@ def cmd_normal(args):
     #Apply changesets
     cloudDAG = ChangesetDAG(ccat)
     path = cloudDAG.path(lmfile['last_push']['hash'], cloudDAG.leafs[0].hash)
-    for node in path:
-        util.remove("/tmp/tmp.patch")
-        util.copy(node.mfile['changeset']['filename'], "/tmp/tmp.patch")
-        logging.info("mv %s %s"%(lcat, "/tmp/tmp.lcat"))
-        shutil.move(lcat, "/tmp/tmp.lcat")
-
-        cmd = args.patch_cmd.replace("$in1", "/tmp/tmp.lcat")\
-                            .replace("$patch", "/tmp/tmp.patch")\
-                            .replace("$out", lcat)
-        logging.info("Patch: %s"%cmd)
-        subprocess.call(cmd, shell=True)
+    util.apply_changesets(args, path, lcat)
 
     #Let's copy Smart Previews
     if not args.no_smart_previews:

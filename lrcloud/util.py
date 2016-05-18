@@ -11,6 +11,7 @@ from os.path import join, basename, dirname, isfile, abspath
 import tempfile
 import logging
 import os
+import subprocess
 
 def copy(src, dst):
     """File copy that support compress and decompress of zip files"""
@@ -51,3 +52,18 @@ def remove(path):
             shutil.rmtree(path, ignore_errors=True)
     except OSError:
         pass
+
+def apply_changesets(args, changesets, catalog):
+    """Apply the 'catalog' the changesets in the metafile list 'changesets'"""
+
+    for node in changesets:
+        remove("/tmp/tmp.patch")
+        copy(node.mfile['changeset']['filename'], "/tmp/tmp.patch")
+        logging.info("mv %s %s"%(catalog, "/tmp/tmp.lcat"))
+        shutil.move(catalog, "/tmp/tmp.lcat")
+
+        cmd = args.patch_cmd.replace("$in1", "/tmp/tmp.lcat")\
+                            .replace("$patch", "/tmp/tmp.patch")\
+                            .replace("$out", catalog)
+        logging.info("Patch: %s"%cmd)
+        subprocess.call(cmd, shell=True)
