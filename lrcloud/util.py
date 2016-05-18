@@ -41,3 +41,13 @@ def copy(src, dst):
             z.write(src, arcname=basename(src))
     else:#None of them are zipped
         shutil.copy2(src, dst)
+
+def remove(path):
+    """Remove file or dir if exist"""
+    try:
+        if isfile(path):
+            os.remove(path)
+        else:
+            shutil.rmtree(path, ignore_errors=True)
+    except OSError:
+        pass

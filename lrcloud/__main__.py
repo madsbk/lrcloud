@@ -245,10 +245,7 @@ def cmd_init_pull_from_cloud(args):
     cloudDAG = ChangesetDAG(ccat)
     path = cloudDAG.path(cloudDAG.root.hash, cloudDAG.leafs[0].hash)
     for node in path:
-        try:
-            os.remove("/tmp/tmp.patch")
-        except OSError:
-            pass
+        util.remove("/tmp/tmp.patch")
         util.copy(node.mfile['changeset']['filename'], "/tmp/tmp.patch")
         logging.info("mv %s %s"%(lcat, "/tmp/tmp.lcat"))
         shutil.move(lcat, "/tmp/tmp.lcat")
@@ -303,13 +300,9 @@ def cmd_normal(args):
         raise RuntimeError("The catalog %s is locked!"%lcat)
 
     #Backup the local catalog (overwriting old backup)
-    try:
-        logging.info("Removed old backup: %s.backup"%lcat)
-        os.remove("%s.backup"%lcat)
-    except OSError:
-        pass
-    logging.info("Backup: %s => %s.backup"%(lcat, lcat))
-    shutil.copy(lcat, "%s.backup"%lcat)
+    logging.info("Removed old backup: %s.backup"%lcat)
+    util.remove("%s.backup"%lcat)
+    util.copy(lcat, "%s.backup"%lcat)
 
     lmfile = MetaFile(lmeta)
     cmfile = MetaFile(cmeta)
@@ -318,10 +311,7 @@ def cmd_normal(args):
     cloudDAG = ChangesetDAG(ccat)
     path = cloudDAG.path(lmfile['last_push']['hash'], cloudDAG.leafs[0].hash)
     for node in path:
-        try:
-            os.remove("/tmp/tmp.patch")
-        except OSError:
-            pass
+        util.remove("/tmp/tmp.patch")
         util.copy(node.mfile['changeset']['filename'], "/tmp/tmp.patch")
         logging.info("mv %s %s"%(lcat, "/tmp/tmp.lcat"))
         shutil.move(lcat, "/tmp/tmp.lcat")
@@ -337,13 +327,9 @@ def cmd_normal(args):
         copy_smart_previews(lcat, ccat, local2cloud=False)
 
     #Backup the local catalog (overwriting old backup)
-    try:
-        logging.info("Removed old backup: %s.backup"%lcat)
-        os.remove("%s.backup"%lcat)
-    except OSError:
-        pass
-    logging.info("Backup: %s => %s.backup"%(lcat, lcat))
-    shutil.copy(lcat, "%s.backup"%lcat)
+    logging.info("Removed old backup: %s.backup"%lcat)
+    util.remove("%s.backup"%lcat)
+    util.copy(lcat, "%s.backup"%lcat)
 
     #Let's unlock the local catalog so that Lightroom can read it
     logging.info("Unlocking local catalog: %s"%(lcat))
