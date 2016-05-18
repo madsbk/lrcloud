@@ -107,8 +107,8 @@ class ChangesetDAG:
             f = abspath(join(cloud_dir, f))
             if not isfile(f):
                 continue
-            pattern = "%s_[0-9a-fA-F]+\.zip\.lrcloud"%cloud_catalog
-            pattern = pattern.replace('\\', '\\\\') # Escape windows backslashes
+            # Note that we escape windows backslashes in the path
+            pattern = "%s_[0-9a-fA-F]+\.zip\.lrcloud"%cloud_catalog.replace('\\', '\\\\')
             if re.search(pattern, f):
                 ret.append(f)
         return ret
