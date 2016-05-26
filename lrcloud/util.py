@@ -66,4 +66,4 @@ def apply_changesets(args, changesets, catalog):
                             .replace("$patch", "/tmp/tmp.patch")\
                             .replace("$out", catalog)
         logging.info("Patch: %s"%cmd)
-        subprocess.call(cmd, shell=True)
+        subprocess.check_call(cmd, shell=True)

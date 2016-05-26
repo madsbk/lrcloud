@@ -328,7 +328,7 @@ def cmd_normal(args):
                                  .replace("$in2", lcat)\
                                  .replace("$out", "/tmp/tmp.patch")
     logging.info("Diff: %s"%args.diff_cmd)
-    subprocess.call(args.diff_cmd, shell=True)
+    subprocess.check_call(args.diff_cmd, shell=True)
 
     patch = "%s_%s.zip"%(ccat, hashsum("/tmp/tmp.patch"))
     util.copy("/tmp/tmp.patch", patch)
