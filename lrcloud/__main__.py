@@ -322,7 +322,7 @@ def cmd_normal(args):
             f.write("%s\n"%args.lightroom_exec_debug)
     elif args.lightroom_exec:
         logging.info("Starting Lightroom: %s %s"%(args.lightroom_exec, lcat))
-        subprocess.call(args.lightroom_exec, lcat)
+        subprocess.call([args.lightroom_exec, lcat])
 
     tmpdir = tempfile.mkdtemp()
     tmp_patch = join(tmpdir, "tmp.patch")
