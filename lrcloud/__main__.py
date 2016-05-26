@@ -324,20 +324,23 @@ def cmd_normal(args):
         logging.info("Starting Lightroom: %s %s"%(args.lightroom_exec, lcat))
         subprocess.call(args.lightroom_exec, lcat)
 
+    tmpdir = tempfile.mkdtemp()
+    tmp_patch = join(tmpdir, "tmp.patch")
+
     args.diff_cmd = args.diff_cmd.replace("$in1", "%s.backup"%lcat)\
                                  .replace("$in2", lcat)\
-                                 .replace("$out", "/tmp/tmp.patch")
+                                 .replace("$out", tmp_patch)
     logging.info("Diff: %s"%args.diff_cmd)
     subprocess.check_call(args.diff_cmd, shell=True)
 
-    patch = "%s_%s.zip"%(ccat, hashsum("/tmp/tmp.patch"))
-    util.copy("/tmp/tmp.patch", patch)
+    patch = "%s_%s.zip"%(ccat, hashsum(tmp_patch))
+    util.copy(tmp_patch, patch)
 
     # Write cloud meta-data
     mfile = MetaFile("%s.lrcloud"%patch)
     utcnow = datetime.utcnow().strftime(DATETIME_FORMAT)[:-4]
     mfile['changeset']['is_base'] = False
-    mfile['changeset']['hash'] = hashsum("/tmp/tmp.patch")
+    mfile['changeset']['hash'] = hashsum(tmp_patch)
     mfile['changeset']['modification_utc'] = utcnow
     mfile['changeset']['filename'] = patch
     mfile['parent']['is_base']          = cloudDAG.leafs[0].mfile['changeset']['is_base']
@@ -351,9 +354,11 @@ def cmd_normal(args):
     mfile['catalog']['hash'] = hashsum(lcat)
     mfile['catalog']['modification_utc'] = utcnow
     mfile['last_push']['filename'] = patch
-    mfile['last_push']['hash'] = hashsum("/tmp/tmp.patch")
+    mfile['last_push']['hash'] = hashsum(tmp_patch)
     mfile['last_push']['modification_utc'] = utcnow
     mfile.flush()
+
+    shutil.rmtree(tmpdir, ignore_errors=True)
 
     #Let's copy Smart Previews
     if not args.no_smart_previews:
@@ -432,16 +437,16 @@ def parse_arguments(argv=None):
         help="The command that given two files, $in1 and $in2, "
              "produces a diff file $out",
         type=str,
-        #default="./jdiff -f $in1 $in2 $out"
-        default="bsdiff $in1 $in2 $out"
+        default="./jdiff -f $in1 $in2 $out"
+        #default="bsdiff $in1 $in2 $out"
     )
     parser.add_argument(
         '--patch-cmd',
         help="The command that given a file, $in1, and a path, "
              "$patch, produces a file $out",
         type=str,
-        #default="./jptch $in1 $patch $out"
-        default="bspatch $in1 $out $patch"
+        default="./jptch $in1 $patch $out"
+        #default="bspatch $in1 $out $patch"
     )
     args = parser.parse_args(args=argv)
     args.error = parser.error
