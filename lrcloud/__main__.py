@@ -327,11 +327,11 @@ def cmd_normal(args):
     tmpdir = tempfile.mkdtemp()
     tmp_patch = join(tmpdir, "tmp.patch")
 
-    args.diff_cmd = args.diff_cmd.replace("$in1", "%s.backup"%lcat)\
-                                 .replace("$in2", lcat)\
-                                 .replace("$out", tmp_patch)
-    logging.info("Diff: %s"%args.diff_cmd)
-    subprocess.check_call(args.diff_cmd, shell=True)
+    diff_cmd = args.diff_cmd.replace("$in1", "%s.backup"%lcat)\
+                            .replace("$in2", lcat)\
+                            .replace("$out", tmp_patch)
+    logging.info("Diff: %s"%diff_cmd)
+    subprocess.call(diff_cmd, shell=True)
 
     patch = "%s_%s.zip"%(ccat, hashsum(tmp_patch))
     util.copy(tmp_patch, patch)
