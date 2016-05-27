@@ -19,7 +19,7 @@ Usage
 -----
 .. note:: Please note that `lrcloud` is still in **beta** so backup your catalog frequently :)
 
-.. code:: bash
+.. code:: 
 
     $ python -m lrcloud -h
     usage: __main__.py [-h] [--init-push-to-cloud | --init-pull-from-cloud]
