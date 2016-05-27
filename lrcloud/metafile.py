@@ -11,6 +11,7 @@ else:
     import ConfigParser as cparser
 import logging
 from datetime import datetime
+from os.path import join, dirname, isabs
 
 from . import util
 
@@ -39,6 +40,8 @@ class MetaFile:
                     pass
                 except TypeError:
                     pass
+                if name == "filename" and not isabs(value):
+                    value = join(dirname(file_path), value) # Make filenames absolute
                 self._data[sec][name] = value
 
     def __getitem__(self, section):

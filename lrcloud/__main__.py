@@ -202,7 +202,7 @@ def cmd_init_push_to_cloud(args):
     mfile['changeset']['is_base'] = True
     mfile['changeset']['hash'] = hashsum(lcat)
     mfile['changeset']['modification_utc'] = utcnow
-    mfile['changeset']['filename'] = ccat
+    mfile['changeset']['filename'] = basename(ccat)
     mfile.flush()
 
     #Let's copy Smart Previews
@@ -342,11 +342,11 @@ def cmd_normal(args):
     mfile['changeset']['is_base'] = False
     mfile['changeset']['hash'] = hashsum(tmp_patch)
     mfile['changeset']['modification_utc'] = utcnow
-    mfile['changeset']['filename'] = patch
+    mfile['changeset']['filename'] = basename(patch)
     mfile['parent']['is_base']          = cloudDAG.leafs[0].mfile['changeset']['is_base']
     mfile['parent']['hash']             = cloudDAG.leafs[0].mfile['changeset']['hash']
     mfile['parent']['modification_utc'] = cloudDAG.leafs[0].mfile['changeset']['modification_utc']
-    mfile['parent']['filename']         = cloudDAG.leafs[0].mfile['changeset']['filename']
+    mfile['parent']['filename']         = basename(cloudDAG.leafs[0].mfile['changeset']['filename'])
     mfile.flush()
 
     # Write local meta-data

@@ -54,7 +54,7 @@ def remove(path):
         pass
 
 def apply_changesets(args, changesets, catalog):
-    """Apply the 'catalog' the changesets in the metafile list 'changesets'"""
+    """Apply to the 'catalog' the changesets in the metafile list 'changesets'"""
 
     tmpdir = tempfile.mkdtemp()
     tmp_patch = join(tmpdir, "tmp.patch")
