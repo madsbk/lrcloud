@@ -437,7 +437,7 @@ def parse_arguments(argv=None):
         help="The command that given two files, $in1 and $in2, "
              "produces a diff file $out",
         type=str,
-        default="./jdiff -f $in1 $in2 $out"
+        #default="./jdiff -f $in1 $in2 $out"
         #default="bsdiff $in1 $in2 $out"
     )
     parser.add_argument(
@@ -445,7 +445,7 @@ def parse_arguments(argv=None):
         help="The command that given a file, $in1, and a path, "
              "$patch, produces a file $out",
         type=str,
-        default="./jptch $in1 $patch $out"
+        #default="./jptch $in1 $patch $out"
         #default="bspatch $in1 $out $patch"
     )
     args = parser.parse_args(args=argv)
